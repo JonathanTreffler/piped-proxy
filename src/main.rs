@@ -427,12 +427,29 @@ async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
 
     let range = query.get("range").map(|s| s.to_string());
 
+    let encryption_key_base64: Option<String> = env::var("ENCRYPTION_KEY_SECRET").ok();
+
     let qs = {
-        let collected = query
+        let filtered = query
             .into_pairs()
             .into_iter()
-            .filter(|(key, _)| !matches!(key.as_str(), "host" | "rewrite" | "qhash"))
-            .collect::<Vec<_>>();
+            .filter(|(key, _)| !matches!(key.as_str(), "host" | "rewrite" | "qhash"));
+
+        let collected = if let Some(encryption_key) = &encryption_key_base64 {
+            filtered.map(|(key, value)| {
+                if matches!(key.as_str(), "ip") {
+                    match utils::decrypt_data(value.as_str(), encryption_key) {
+                        Ok(decrypted_value) => (key, decrypted_value),
+                        Err(_) => (key, String::from("")),
+                    }
+                } else {
+                    (key, value)
+                }
+            })
+            .collect::<Vec<_>>()
+        } else {
+            filtered.collect::<Vec<_>>()
+        };
         QString::new(collected)
     };
 

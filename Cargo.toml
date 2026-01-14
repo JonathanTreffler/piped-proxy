@@ -28,6 +28,9 @@ bytes = "1.9.0"
 futures-util = "0.3.30"
 listenfd = "1.0.1"
 http = "1.2.0"
+aes-gcm = "0.9"
+base64 = "0.21"
+rand = "0.8"
 
 [features]
 default = ["webp", "mimalloc", "reqwest-rustls", "qhash"]

@@ -1,7 +1,11 @@
 use qstring::QString;
 use reqwest::Url;
+use aes_gcm::{Aes128Gcm, Key, Nonce};  // AES-GCM with 128-bit key
+use aes_gcm::aead::{Aead, NewAead};
+use base64::{engine::general_purpose::STANDARD, engine::general_purpose::URL_SAFE, Engine as _};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::env;
 
 pub fn read_buf(buf: &[u8], pos: &mut usize) -> u8 {
@@ -100,4 +104,30 @@ pub fn get_env_bool(key: &str) -> bool {
         Ok(val) => val.to_lowercase() == "true" || val == "1",
         Err(_) => false,
     }
+}
+
+pub fn decrypt_data(encrypted_data: &str, encryption_key_base64: &str) -> Result<String, Box<dyn Error>> {
+    let decoded_key = STANDARD.decode(encryption_key_base64)
+        .map_err(|_| Box::<dyn Error>::from("Decryption failed"))?;
+
+    if decoded_key.len() != 16 {
+        return Err("Invalid key size. AES-128 requires a 16-byte key.".into());
+    }
+
+    let key = Key::from_slice(&decoded_key);
+
+    let decoded_data = URL_SAFE.decode(encrypted_data)
+        .map_err(|_| Box::<dyn Error>::from("Decryption failed"))?;
+
+    let nonce = &decoded_data[..12];
+    let ciphertext = &decoded_data[12..];
+
+    let cipher = Aes128Gcm::new(key);
+    let nonce = Nonce::from_slice(nonce); // 96-bit nonce
+
+    let decrypted_data = cipher.decrypt(nonce, ciphertext)
+        .map_err(|_| Box::<dyn Error>::from("Decryption failed"))?;
+
+    String::from_utf8(decrypted_data)
+        .map_err(|_| Box::<dyn Error>::from("Decryption failed"))
 }
